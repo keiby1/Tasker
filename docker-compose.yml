@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tasker
+      POSTGRES_USER: tasker
+      POSTGRES_PASSWORD: tasker
+    ports:
+      - "5432:5432"
+    volumes:
+      - tasker_pgdata:/var/lib/postgresql/data
+
+volumes:
+  tasker_pgdata:

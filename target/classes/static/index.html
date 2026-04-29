@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Tasker — планирование</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@1.2.2/dist/frappe-gantt.css"/>
+    <link rel="stylesheet" href="/css/app.css"/>
+</head>
+<body>
+<header class="top">
+    <h1 class="brand">Tasker</h1>
+    <nav class="tabs" role="tablist">
+        <button type="button" class="tab active" data-view="kanban">Канбан</button>
+        <button type="button" class="tab" data-view="gantt">Ганта</button>
+    </nav>
+</header>
+
+<section class="toolbar">
+    <div class="toolbar-row">
+        <label class="field">
+            Исполнитель
+            <div class="field-inline">
+                <select id="filterAssignee">
+                    <option value="">Любой</option>
+                </select>
+                <button type="button" class="btn ghost mini" id="btnNewAssigneeFilter" title="Добавить исполнителя">+</button>
+            </div>
+        </label>
+        <label class="field">
+            Метка
+            <select id="filterLabel">
+                <option value="">Любая</option>
+            </select>
+        </label>
+        <button type="button" id="btnApplyFilters" class="btn primary">Применить</button>
+        <button type="button" id="btnResetFilters" class="btn ghost">Сброс</button>
+        <span class="spacer"></span>
+        <button type="button" id="btnRefresh" class="btn">Обновить</button>
+        <button type="button" id="btnNewTask" class="btn accent">Новая задача</button>
+    </div>
+</section>
+
+<main id="viewKanban" class="panel">
+    <div class="columns" id="board"></div>
+</main>
+
+<main id="viewGantt" class="panel hidden">
+    <div id="ganttHost" class="gantt-host"></div>
+</main>
+
+<dialog id="taskDialog" class="modal">
+    <form method="dialog" id="taskForm" class="modal-body">
+        <h2 id="taskDialogTitle">Задача</h2>
+        <input type="hidden" id="taskId"/>
+        <label>Заголовок <input id="fldTitle" required maxlength="500"/></label>
+        <label>Описание <textarea id="fldDescription" rows="4"></textarea></label>
+        <label>Статус
+            <select id="fldStatus">
+                <option value="TODO">К выполнению</option>
+                <option value="IN_PROGRESS">В работе</option>
+                <option value="REVIEW">Проверка</option>
+                <option value="DONE">Готово</option>
+            </select>
+        </label>
+        <label class="field-assignee-task">
+            Исполнитель
+            <div class="field-inline">
+                <select id="fldAssignee">
+                    <option value="">Не назначен</option>
+                </select>
+                <button type="button" class="btn ghost mini" id="btnNewAssigneeTask" title="Добавить исполнителя">+</button>
+            </div>
+        </label>
+        <label class="field">
+            Метки
+            <div class="select-multi" id="labelMultiWrap">
+                <button type="button" class="select-multi-trigger" id="labelMultiTrigger" aria-expanded="false">
+                    Выберите метки…
+                </button>
+                <div class="select-multi-dropdown" id="labelMultiDropdown" hidden>
+                    <input type="search" class="select-multi-search" id="labelMultiSearch" placeholder="Поиск метки…"
+                           autocomplete="off"/>
+                    <div class="select-multi-scroll" id="labelMultiScroll"></div>
+                </div>
+            </div>
+        </label>
+        <div class="row two">
+            <label>Дата начала (план) <input id="fldPlanStart" type="date"/></label>
+            <label>Дата конца (план) <input id="fldPlanEnd" type="date"/></label>
+        </div>
+        <p class="hint hint-links">
+            <a href="#" id="linkNewLabel">Создать метку…</a>
+        </p>
+        <footer class="modal-actions">
+            <button type="button" class="btn ghost" id="btnDeleteTask">Удалить</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" id="btnCancelTask">Отмена</button>
+            <button type="button" class="btn accent" id="btnSaveTask">Сохранить</button>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="assigneeDialog" class="modal small">
+    <form id="assigneeForm" class="modal-body">
+        <h2>Новый исполнитель</h2>
+        <label>ФИО / имя <input id="fldAssigneeName" required maxlength="200"/></label>
+        <footer class="modal-actions">
+            <button type="button" class="btn" id="btnCancelAssignee">Отмена</button>
+            <button type="button" class="btn accent" id="btnSaveAssignee">Создать</button>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="labelDialog" class="modal small">
+    <form id="labelForm" class="modal-body">
+        <h2>Новая метка</h2>
+        <label>Название <input id="fldLabelName" required maxlength="64"/></label>
+        <label>Цвет <input id="fldLabelColor" type="color" value="#6b7280"/></label>
+        <footer class="modal-actions">
+            <button type="button" class="btn" id="btnCancelLabel">Отмена</button>
+            <button type="button" class="btn accent" id="btnSaveLabel">Создать</button>
+        </footer>
+    </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@1.2.2/dist/frappe-gantt.umd.min.js"></script>
+<script src="/js/app.js" defer></script>
+</body>
+</html>
