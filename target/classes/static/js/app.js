@@ -1,9 +1,87 @@
+/** Подписи в форме задачи и прогресс на Ганта (0–100) по статусу с бэкенда. */
 const STATUS_COLUMNS = [
-    { status: 'TODO', title: 'К выполнению' },
-    { status: 'IN_PROGRESS', title: 'В работе' },
-    { status: 'REVIEW', title: 'Проверка' },
-    { status: 'DONE', title: 'Готово' }
+    { status: 'TODO', title: 'Бэклог', progress: 10 },
+    { status: 'DEPLOY', title: 'Развёртывание', progress: 20 },
+    { status: 'PREPARE', title: 'Подготовка', progress: 40 },
+    { status: 'IN_PROGRESS', title: 'В работе', progress: 55 },
+    { status: 'REVIEW', title: 'Завершение', progress: 85 },
+    { status: 'DONE', title: 'Готово', progress: 100 }
 ];
+
+/** Столбцы канбана: один столбец = несколько статусов. Порядок статусов в «В работе» — трактовка склейки и сортировки. */
+const BOARD_LANES = [
+    { key: 'backlog', title: 'Бэклог', statuses: ['TODO'] },
+    { key: 'active', title: 'В работе', statuses: ['DEPLOY', 'PREPARE', 'IN_PROGRESS', 'REVIEW'] },
+    { key: 'done', title: 'Готово', statuses: ['DONE'] }
+];
+
+function laneKeyOfStatus(status) {
+    const lane = BOARD_LANES.find((l) => l.statuses.includes(status));
+    return lane ? lane.key : 'backlog';
+}
+
+/** Целевой статус задачи после переноса в другой столбец (перестановка в том же столбце — статус не меняется). */
+function resolveStatusAfterLaneMove(fromStatus, targetLaneKey) {
+    const fromLane = laneKeyOfStatus(fromStatus);
+    if (fromLane === targetLaneKey) {
+        return fromStatus;
+    }
+    if (targetLaneKey === 'backlog') {
+        return 'TODO';
+    }
+    if (targetLaneKey === 'done') {
+        return 'DONE';
+    }
+    /* в активный столбец */
+    return fromLane === 'done' ? 'REVIEW' : 'DEPLOY';
+}
+
+/** Индекс в целевом «подстолбце» статуса для API move (boardOrder считается внутри одного статуса). */
+function boardOrderAmongStatus(mergedTaskIds, movedId, targetStatus) {
+    const stacked = mergedTaskIds.filter((tid) => {
+        const t = state.tasks.find((x) => x.id === tid);
+        const eff = tid === movedId ? targetStatus : t?.status;
+        return eff === targetStatus;
+    });
+    const idx = stacked.indexOf(movedId);
+    return idx < 0 ? 0 : idx;
+}
+
+function sortTasksInLane(laneKey, list) {
+    if (laneKey === 'active') {
+        const lane = BOARD_LANES.find((l) => l.key === 'active');
+        const ord = lane.statuses;
+        const rank = (s) => {
+            const i = ord.indexOf(s);
+            return i >= 0 ? i : 99;
+        };
+        return [...list].sort((a, b) => rank(a.status) - rank(b.status) || a.boardOrder - b.boardOrder);
+    }
+    return [...list].sort((a, b) => a.boardOrder - b.boardOrder);
+}
+
+const DEFAULT_TASK_STATUS = STATUS_COLUMNS[0].status;
+
+function ganttProgressForStatus(status) {
+    const col = STATUS_COLUMNS.find((c) => c.status === status);
+    if (!col || typeof col.progress !== 'number') {
+        return 0;
+    }
+    return Math.min(100, Math.max(0, col.progress));
+}
+
+function fillTaskStatusSelect() {
+    const sel = $('#fldStatus');
+    const keep = sel.value;
+    sel.innerHTML = '';
+    for (const col of STATUS_COLUMNS) {
+        const o = document.createElement('option');
+        o.value = col.status;
+        o.textContent = col.title;
+        sel.appendChild(o);
+    }
+    sel.value = [...sel.options].some((opt) => opt.value === keep) ? keep : DEFAULT_TASK_STATUS;
+}
 
 const state = {
     tasks: [],
@@ -194,25 +272,28 @@ async function loadTasks() {
 function renderBoard() {
     const board = $('#board');
     board.innerHTML = '';
-    const byStatus = {};
-    for (const s of STATUS_COLUMNS) {
-        byStatus[s.status] = [];
-    }
-    for (const t of state.tasks) {
-        if (byStatus[t.status]) {
-            byStatus[t.status].push(t);
+    const knownStatuses = new Set(STATUS_COLUMNS.map((s) => s.status));
+    for (const lane of BOARD_LANES) {
+        const list = [];
+        for (const t of state.tasks) {
+            if (lane.statuses.includes(t.status)) {
+                list.push(t);
+            }
         }
-    }
-    for (const col of STATUS_COLUMNS) {
-        const list = byStatus[col.status].sort((a, b) => a.boardOrder - b.boardOrder);
+        const sorted = sortTasksInLane(lane.key, list);
+        const orphansInLane =
+            lane.key === 'backlog'
+                ? state.tasks.filter((t) => !knownStatuses.has(t.status))
+                : [];
+        const merged = [...sorted, ...sortTasksInLane('backlog', orphansInLane)];
         const wrap = document.createElement('div');
         wrap.className = 'column';
-        wrap.dataset.status = col.status;
-        wrap.innerHTML = `<div class="column-header"><span>${col.title}</span><span class="pill">${list.length}</span></div>`;
+        wrap.dataset.laneKey = lane.key;
+        wrap.innerHTML = `<div class="column-header"><span>${lane.title}</span><span class="pill">${merged.length}</span></div>`;
         const body = document.createElement('div');
         body.className = 'column-body';
-        body.dataset.status = col.status;
-        for (const t of list) {
+        body.dataset.laneKey = lane.key;
+        for (const t of merged) {
             body.appendChild(renderCard(t));
         }
         body.addEventListener('dragover', onColDragOver);
@@ -264,12 +345,17 @@ function onColDragOver(ev) {
 function onColDrop(ev) {
     ev.preventDefault();
     ev.currentTarget.classList.remove('drag-over');
-    const status = ev.currentTarget.dataset.status;
+    const laneKey = ev.currentTarget.dataset.laneKey;
     const id = dragTaskId || Number(ev.dataTransfer.getData('text/plain'));
-    if (!id || !status) {
+    if (!id || !laneKey) {
+        return;
+    }
+    const task = state.tasks.find((t) => t.id === id);
+    if (!task) {
         return;
     }
     const siblings = [...ev.currentTarget.querySelectorAll('.card')].filter((c) => Number(c.dataset.taskId) !== id);
+    const orderedIds = siblings.map((c) => Number(c.dataset.taskId));
     const rect = ev.currentTarget.getBoundingClientRect();
     const y = ev.clientY - rect.top;
     let insertIndex = 0;
@@ -280,7 +366,10 @@ function onColDrop(ev) {
             insertIndex = i + 1;
         }
     }
-    moveTask(id, status, insertIndex).catch((e) => toast(String(e.message)));
+    const mergedIds = [...orderedIds.slice(0, insertIndex), id, ...orderedIds.slice(insertIndex)];
+    const newStatus = resolveStatusAfterLaneMove(task.status, laneKey);
+    const boardOrder = boardOrderAmongStatus(mergedIds, id, newStatus);
+    moveTask(id, newStatus, boardOrder).catch((e) => toast(String(e.message)));
 }
 
 document.addEventListener('dragleave', (ev) => {
@@ -342,7 +431,7 @@ function renderGantt() {
             name: t.title + suffix,
             start,
             end,
-            progress: t.status === 'DONE' ? 100 : Math.min(90, t.status === 'REVIEW' ? 85 : t.status === 'IN_PROGRESS' ? 55 : 10)
+            progress: ganttProgressForStatus(t.status)
         });
     }
     if (rows.length === 0) {
@@ -512,7 +601,8 @@ function openTaskDialog(t) {
     $('#taskId').value = t ? String(t.id) : '';
     $('#fldTitle').value = t?.title || '';
     $('#fldDescription').value = t?.description || '';
-    $('#fldStatus').value = t?.status || 'TODO';
+    const st = t?.status || DEFAULT_TASK_STATUS;
+    $('#fldStatus').value = [...$('#fldStatus').options].some((o) => o.value === st) ? st : DEFAULT_TASK_STATUS;
     const aid = t?.assignee?.id != null ? String(t.assignee.id) : '';
     fillAssigneeSelect($('#fldAssignee'), aid, 'Не назначен');
     $('#fldPlanStart').value = t?.planStart || '';
@@ -534,4 +624,5 @@ function openTaskDialog(t) {
 
 bindLabelMultiOnce();
 
+fillTaskStatusSelect();
 Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(String(e.message)));
