@@ -403,6 +403,48 @@ function addDaysYmd(ymd, days) {
     return d.toISOString().slice(0, 10);
 }
 
+/** `#RGB`/`#RRGGBB` → шестизначное hex без решётки, иначе `null`. */
+function normalizeHexColor(raw) {
+    if (raw == null || typeof raw !== 'string') {
+        return null;
+    }
+    let c = raw.trim().replace(/^#/, '');
+    if (/^[0-9a-fA-F]{3}$/.test(c)) {
+        c = [...c].map((ch) => ch + ch).join('');
+    }
+    if (!/^[0-9a-fA-F]{6}$/.test(c)) {
+        return null;
+    }
+    return c.toLowerCase();
+}
+
+/** CSS для классов вида `.gantt-fill-{hex}` (Frappe: `custom_class` на `.bar-wrapper`). */
+function upsertGanttLabelColorStyles(hexSet) {
+    const id = 'gantt-dynamic-bar-colors';
+    let el = document.getElementById(id);
+    const keys = [...hexSet];
+    if (keys.length === 0) {
+        if (el) {
+            el.textContent = '';
+        }
+        return;
+    }
+    if (!el) {
+        el = document.createElement('style');
+        el.id = id;
+        document.head.appendChild(el);
+    }
+    let css = '';
+    for (const hex6 of keys) {
+        const cls = `gantt-fill-${hex6}`;
+        const labelColour = `#${hex6}`;
+        /* Frappe: .bar — вся полоса (справа — «осталось»); .bar-progress слева — доля выполнения. */
+        css += `.gantt-host .gantt .bar-wrapper.${cls} .bar{fill:#ffffff!important;stroke:rgba(0,0,0,0.12)!important;}\n`;
+        css += `.gantt-host .gantt .bar-wrapper.${cls} .bar-progress{fill:${labelColour}!important}\n`;
+    }
+    el.textContent = css;
+}
+
 function renderGantt() {
     const host = $('#ganttHost');
     host.innerHTML = '';
@@ -410,8 +452,10 @@ function renderGantt() {
     if (typeof GanttCtor !== 'function') {
         host.innerHTML =
             '<div class="gantt-empty hint" style="padding:1rem">Не удалось загрузить библиотеку диаграммы Ганта с CDN — проверьте сеть и блокировку сторонних скриптов.</div>';
+        upsertGanttLabelColorStyles(new Set());
         return;
     }
+    const usedHexColors = new Set();
     const rows = [];
     for (const t of state.tasks) {
         let start = t.planStart;
@@ -426,18 +470,29 @@ function renderGantt() {
             end = start;
         }
         const suffix = t.assignee ? ` — ${t.assignee.name}` : '';
-        rows.push({
+        const firstLbl = Array.isArray(t.labels) ? t.labels[0] : null;
+        const hexKey = normalizeHexColor(firstLbl?.color);
+        if (hexKey) {
+            usedHexColors.add(hexKey);
+        }
+        const row = {
             id: `t_${t.id}`,
             name: t.title + suffix,
             start,
             end,
             progress: ganttProgressForStatus(t.status)
-        });
+        };
+        if (hexKey) {
+            row.custom_class = `gantt-fill-${hexKey}`;
+        }
+        rows.push(row);
     }
     if (rows.length === 0) {
+        upsertGanttLabelColorStyles(new Set());
         host.innerHTML = '<div class="gantt-empty hint" style="padding:1rem">Нет задач по текущим фильтрам.</div>';
         return;
     }
+    upsertGanttLabelColorStyles(usedHexColors);
     state.gantt = new GanttCtor('#ganttHost', rows, {
         view_mode: 'Week',
         date_format: 'YYYY-MM-DD',
