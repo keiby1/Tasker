@@ -67,26 +67,26 @@
                 <button type="button" class="btn ghost mini" id="btnNewAssigneeTask" title="Добавить исполнителя">+</button>
             </div>
         </label>
-        <label class="field">
+        <label class="field-assignee-task">
             Метки
-            <div class="select-multi" id="labelMultiWrap">
-                <button type="button" class="select-multi-trigger" id="labelMultiTrigger" aria-expanded="false">
-                    Выберите метки…
-                </button>
-                <div class="select-multi-dropdown" id="labelMultiDropdown" hidden>
-                    <input type="search" class="select-multi-search" id="labelMultiSearch" placeholder="Поиск метки…"
-                           autocomplete="off"/>
-                    <div class="select-multi-scroll" id="labelMultiScroll"></div>
+            <div class="field-inline">
+                <div class="select-multi" id="labelMultiWrap">
+                    <button type="button" class="select-multi-trigger" id="labelMultiTrigger" aria-expanded="false">
+                        Выберите метки…
+                    </button>
+                    <div class="select-multi-dropdown" id="labelMultiDropdown" hidden>
+                        <input type="search" class="select-multi-search" id="labelMultiSearch" placeholder="Поиск метки…"
+                               autocomplete="off"/>
+                        <div class="select-multi-scroll" id="labelMultiScroll"></div>
+                    </div>
                 </div>
+                <button type="button" class="btn ghost mini" id="btnNewLabelTask" title="Добавить метку">+</button>
             </div>
         </label>
         <div class="row two">
             <label>Дата начала (план) <input id="fldPlanStart" type="date"/></label>
             <label>Дата конца (план) <input id="fldPlanEnd" type="date"/></label>
         </div>
-        <p class="hint hint-links">
-            <a href="#" id="linkNewLabel">Создать метку…</a>
-        </p>
         <footer class="modal-actions">
             <button type="button" class="btn ghost" id="btnDeleteTask">Удалить</button>
             <span class="spacer"></span>

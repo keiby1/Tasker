@@ -111,7 +111,8 @@ body {
     gap: 0.35rem;
 }
 
-.field-inline select {
+.field-inline select,
+.field-inline > .select-multi {
     flex: 1;
     min-width: 0;
 }
@@ -178,6 +179,17 @@ body {
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.86rem;
+}
+
+/* В модалках `.modal-body label` задаёт колонку — здесь нужна строка: чекбокс • цвет • название */
+.modal-body .label-multi-row {
+    flex-direction: row;
+}
+
+.modal-body .label-multi-row .label-multi-chk {
+    width: auto;
+    margin: 0;
+    flex-shrink: 0;
 }
 
 .label-multi-row:hover {

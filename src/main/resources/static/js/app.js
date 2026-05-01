@@ -578,10 +578,7 @@ $('#btnDeleteTask').addEventListener('click', async () => {
     }
 });
 
-$('#linkNewLabel').addEventListener('click', (ev) => {
-    ev.preventDefault();
-    $('#labelDialog').showModal();
-});
+$('#btnNewLabelTask').addEventListener('click', () => $('#labelDialog').showModal());
 
 $('#btnCancelLabel').addEventListener('click', () => $('#labelDialog').close());
 
