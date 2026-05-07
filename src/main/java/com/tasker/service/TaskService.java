@@ -34,8 +34,8 @@ public class TaskService {
     private final AssigneeRepository assigneeRepository;
 
     @Transactional(readOnly = true)
-    public List<TaskDto> findAll(Long assigneeId, Long labelId) {
-        Specification<Task> spec = TaskSpecifications.filtered(assigneeId, labelId);
+    public List<TaskDto> findAll(Long assigneeId, List<Long> labelIds) {
+        Specification<Task> spec = TaskSpecifications.filtered(assigneeId, labelIds);
         Sort sort = Sort.by("status").ascending()
                 .and(Sort.by("boardOrder").ascending());
 

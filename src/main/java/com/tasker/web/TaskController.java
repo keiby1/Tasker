@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -28,9 +31,25 @@ public class TaskController {
     @GetMapping
     public List<TaskDto> list(
             @RequestParam(required = false) Long assigneeId,
-            @RequestParam(required = false) Long labelId
+            @RequestParam(required = false) Long labelId,
+            @RequestParam(required = false) List<Long> labelIds
     ) {
-        return taskService.findAll(assigneeId, labelId);
+        return taskService.findAll(assigneeId, normalizeLabelIds(labelId, labelIds));
+    }
+
+    private static List<Long> normalizeLabelIds(Long labelId, List<Long> labelIds) {
+        Set<Long> out = new LinkedHashSet<>();
+        if (labelIds != null) {
+            for (Long id : labelIds) {
+                if (id != null) {
+                    out.add(id);
+                }
+            }
+        }
+        if (out.isEmpty() && labelId != null) {
+            out.add(labelId);
+        }
+        return new ArrayList<>(out);
     }
 
     @GetMapping("/{id}")

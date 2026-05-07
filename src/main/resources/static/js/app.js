@@ -87,7 +87,7 @@ const state = {
     tasks: [],
     labels: [],
     assignees: [],
-    filters: { assigneeId: '', labelId: '' },
+    filters: { assigneeId: '', labelIds: [] },
     assigneeDialogTarget: 'filter',
     gantt: null,
     currentView: 'kanban'
@@ -133,12 +133,13 @@ async function api(path, opts = {}) {
 function buildTaskQuery() {
     const p = new URLSearchParams();
     const aid = state.filters.assigneeId;
-    const lid = state.filters.labelId;
     if (aid) {
         p.set('assigneeId', aid);
     }
-    if (lid) {
-        p.set('labelId', lid);
+    for (const id of state.filters.labelIds) {
+        if (Number.isFinite(id)) {
+            p.append('labelIds', String(id));
+        }
     }
     const qs = p.toString();
     return qs ? `?${qs}` : '';
@@ -168,31 +169,30 @@ function fillAssigneeSelect(sel, valueAfter, firstLabel) {
     sel.value = [...sel.options].some((opt) => opt.value === desired) ? desired : '';
 }
 
-async function loadLabels() {
-    state.labels = await api('/api/labels');
-    const sel = $('#filterLabel');
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">Любая</option>';
-    for (const lb of state.labels) {
-        const o = document.createElement('option');
-        o.value = String(lb.id);
-        o.textContent = lb.name;
-        sel.appendChild(o);
-    }
-    sel.value = cur && [...sel.options].some((o) => o.value === cur) ? cur : '';
-    buildLabelMultiList();
-}
-
-function buildLabelMultiList() {
-    const scroll = $('#labelMultiScroll');
-    scroll.innerHTML = '';
+function buildLabelCheckboxList(scrollEl, inputClass) {
+    scrollEl.innerHTML = '';
     for (const lb of state.labels) {
         const row = document.createElement('label');
         row.className = 'label-multi-row';
         row.dataset.name = (lb.name || '').toLowerCase();
-        row.innerHTML = `<input type="checkbox" value="${lb.id}" class="label-multi-chk"/> <span style="color:${escapeAttr(lb.color || '#64748b')}">●</span> <span class="label-multi-name">${escapeHtml(lb.name)}</span>`;
-        scroll.appendChild(row);
+        row.innerHTML = `<input type="checkbox" value="${lb.id}" class="${inputClass}"/> <span style="color:${escapeAttr(lb.color || '#64748b')}">●</span> <span class="label-multi-name">${escapeHtml(lb.name)}</span>`;
+        scrollEl.appendChild(row);
     }
+}
+
+async function loadLabels() {
+    state.labels = await api('/api/labels');
+    const filterSel = new Set(state.filters.labelIds.map(String));
+    buildLabelCheckboxList($('#labelMultiScroll'), 'label-multi-chk');
+    buildLabelCheckboxList($('#filterLabelMultiScroll'), 'filter-label-chk');
+    $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
+        c.checked = filterSel.has(c.value);
+    });
+    updateFilterLabelTriggerText();
+}
+
+function buildLabelMultiList() {
+    buildLabelCheckboxList($('#labelMultiScroll'), 'label-multi-chk');
 }
 
 function escapeAttr(s) {
@@ -229,6 +229,20 @@ function updateLabelTriggerText() {
     trig.textContent = names.slice(0, 3).join(', ') + (names.length > 3 ? ` (+${names.length - 3})` : '');
 }
 
+function updateFilterLabelTriggerText() {
+    const trig = $('#filterLabelMultiTrigger');
+    const checked = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')];
+    if (checked.length === 0) {
+        trig.textContent = 'Любые';
+        return;
+    }
+    const names = checked.map((ch) => {
+        const lb = state.labels.find((l) => String(l.id) === ch.value);
+        return lb ? lb.name : ch.value;
+    });
+    trig.textContent = names.slice(0, 3).join(', ') + (names.length > 3 ? ` (+${names.length - 3})` : '');
+}
+
 function bindLabelMultiOnce() {
     const wrap = $('#labelMultiWrap');
     const trig = $('#labelMultiTrigger');
@@ -256,6 +270,41 @@ function bindLabelMultiOnce() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             toggleLabelDropdown(false);
+        }
+    });
+}
+
+function bindFilterLabelMultiOnce() {
+    const wrap = $('#filterLabelMultiWrap');
+    const trig = $('#filterLabelMultiTrigger');
+    const dd = $('#filterLabelMultiDropdown');
+    const search = $('#filterLabelMultiSearch');
+    trig.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const open = dd.hidden;
+        dd.hidden = !open;
+        trig.setAttribute('aria-expanded', String(open));
+    });
+    dd.addEventListener('click', (e) => e.stopPropagation());
+    search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        wrap.querySelectorAll('.label-multi-row').forEach((row) => {
+            const n = row.dataset.name || '';
+            row.style.display = !q || n.includes(q) ? '' : 'none';
+        });
+    });
+    $('#filterLabelMultiScroll').addEventListener('change', updateFilterLabelTriggerText);
+    document.addEventListener('click', (e) => {
+        if (!wrap.contains(e.target)) {
+            dd.hidden = true;
+            trig.setAttribute('aria-expanded', 'false');
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            dd.hidden = true;
+            trig.setAttribute('aria-expanded', 'false');
         }
     });
 }
@@ -520,15 +569,20 @@ document.querySelectorAll('.tabs .tab').forEach((btn) =>
 
 $('#btnApplyFilters').addEventListener('click', () => {
     state.filters.assigneeId = $('#filterAssignee').value || '';
-    state.filters.labelId = $('#filterLabel').value || '';
+    state.filters.labelIds = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')].map((c) =>
+        Number(c.value)
+    );
     loadTasks().catch((e) => toast(e.message));
 });
 
 $('#btnResetFilters').addEventListener('click', () => {
     $('#filterAssignee').value = '';
-    $('#filterLabel').value = '';
+    $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
+        c.checked = false;
+    });
     state.filters.assigneeId = '';
-    state.filters.labelId = '';
+    state.filters.labelIds = [];
+    updateFilterLabelTriggerText();
     loadTasks().catch((e) => toast(e.message));
 });
 
@@ -596,6 +650,7 @@ $('#btnSaveLabel').addEventListener('click', async () => {
         toast('Метка создана');
         await loadLabels();
         updateLabelTriggerText();
+        updateFilterLabelTriggerText();
     } catch (e) {
         toast(String(e.message));
     }
@@ -675,6 +730,7 @@ function openTaskDialog(t) {
 }
 
 bindLabelMultiOnce();
+bindFilterLabelMultiOnce();
 
 fillTaskStatusSelect();
 Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(String(e.message)));

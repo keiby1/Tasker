@@ -15,16 +15,16 @@ public final class TaskSpecifications {
     private TaskSpecifications() {
     }
 
-    public static Specification<Task> filtered(Long assigneeId, Long labelId) {
+    public static Specification<Task> filtered(Long assigneeId, List<Long> labelIds) {
         return (root, query, cb) -> {
             query.distinct(true);
             List<Predicate> predicates = new ArrayList<>();
             if (assigneeId != null) {
                 predicates.add(cb.equal(root.join("assignee", JoinType.INNER).get("id"), assigneeId));
             }
-            if (labelId != null) {
+            if (labelIds != null && !labelIds.isEmpty()) {
                 Join<Task, Label> labelJoin = root.join("labels", JoinType.INNER);
-                predicates.add(cb.equal(labelJoin.get("id"), labelId));
+                predicates.add(labelJoin.get("id").in(labelIds));
             }
             if (predicates.isEmpty()) {
                 return cb.conjunction();

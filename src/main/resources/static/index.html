@@ -28,10 +28,19 @@
             </div>
         </label>
         <label class="field">
-            Метка
-            <select id="filterLabel">
-                <option value="">Любая</option>
-            </select>
+            Метки
+            <div class="field-inline">
+                <div class="select-multi" id="filterLabelMultiWrap">
+                    <button type="button" class="select-multi-trigger" id="filterLabelMultiTrigger" aria-expanded="false">
+                        Любые
+                    </button>
+                    <div class="select-multi-dropdown" id="filterLabelMultiDropdown" hidden>
+                        <input type="search" class="select-multi-search" id="filterLabelMultiSearch"
+                               placeholder="Поиск метки…" autocomplete="off"/>
+                        <div class="select-multi-scroll" id="filterLabelMultiScroll"></div>
+                    </div>
+                </div>
+            </div>
         </label>
         <button type="button" id="btnApplyFilters" class="btn primary">Применить</button>
         <button type="button" id="btnResetFilters" class="btn ghost">Сброс</button>
