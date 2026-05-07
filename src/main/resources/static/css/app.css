@@ -284,6 +284,15 @@ body {
     margin-bottom: 0.55rem;
     cursor: grab;
     box-shadow: 0 2px 8px var(--shadow-md);
+    position: relative;
+}
+
+.card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
 }
 
 .card:active {
@@ -293,8 +302,30 @@ body {
 .card-title {
     font-weight: 600;
     font-size: 0.93rem;
-    margin: 0 0 0.35rem;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
     color: var(--text);
+}
+
+.card-link-mark {
+    flex-shrink: 0;
+    line-height: 1;
+    font-size: 1rem;
+    padding: 0.05rem 0.15rem;
+    margin: -0.05rem -0.1rem 0 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    cursor: default;
+}
+
+.card-link-mark.card-link-hit {
+    cursor: pointer;
+}
+
+.card-link-mark.card-link-hit:hover {
+    opacity: 0.75;
 }
 
 .meta {

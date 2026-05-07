@@ -309,6 +309,22 @@ function bindFilterLabelMultiOnce() {
     });
 }
 
+function taskLinkTrimmed(t) {
+    const s = t?.link;
+    return typeof s === 'string' ? s.trim() : '';
+}
+
+/** Для открытия во вкладке: без схемы подставляет https:// */
+function hrefForOpenInTab(linkTrimmed) {
+    if (!linkTrimmed) {
+        return null;
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(linkTrimmed)) {
+        return linkTrimmed;
+    }
+    return `https://${linkTrimmed}`;
+}
+
 async function loadTasks() {
     state.tasks = await api(`/api/tasks${buildTaskQuery()}`);
     if (state.currentView === 'kanban') {
@@ -364,12 +380,36 @@ function renderCard(t) {
     const assigneeHtml = t.assignee
         ? `<span class="pill pill-assignee">${escapeHtml(t.assignee.name)}</span>`
         : '';
+    const lt = taskLinkTrimmed(t);
+    const linkPart = lt
+        ? `<button type="button" class="card-link-mark card-link-hit" draggable="false" aria-label="Открыть ссылку" title="${escapeHtml(
+              lt
+          )}">✅</button>`
+        : `<span class="card-link-mark" aria-label="Ссылка не задана" title="Ссылка не задана">❌</span>`;
+
     el.innerHTML = `
-    <p class="card-title">${escapeHtml(t.title)}</p>
+    <div class="card-top">
+      <p class="card-title">${escapeHtml(t.title)}</p>${linkPart}
+    </div>
     <div class="meta">${assigneeHtml} ${tags}</div>
     <div class="card-actions">
       <button type="button" class="btn mini link" data-action="edit">Изменить</button>
     </div>`;
+
+    const linkHit = el.querySelector('.card-link-hit');
+    if (linkHit) {
+        const href = hrefForOpenInTab(lt);
+        linkHit.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!href) {
+                return;
+            }
+            window.open(href, '_blank', 'noopener,noreferrer');
+        });
+        linkHit.addEventListener('mousedown', (e) => e.stopPropagation());
+        linkHit.addEventListener('dragstart', (e) => e.preventDefault());
+    }
     el.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
         e.stopPropagation();
         openTaskDialog(t);
@@ -695,6 +735,7 @@ function collectTaskPayload() {
     return {
         title: $('#fldTitle').value.trim(),
         description: $('#fldDescription').value || null,
+        link: $('#fldLink').value.trim() || null,
         status: $('#fldStatus').value,
         assigneeId: aid ? Number(aid) : null,
         planStart: $('#fldPlanStart').value || null,
@@ -708,6 +749,7 @@ function openTaskDialog(t) {
     $('#taskId').value = t ? String(t.id) : '';
     $('#fldTitle').value = t?.title || '';
     $('#fldDescription').value = t?.description || '';
+    $('#fldLink').value = t?.link || '';
     const st = t?.status || DEFAULT_TASK_STATUS;
     $('#fldStatus').value = [...$('#fldStatus').options].some((o) => o.value === st) ? st : DEFAULT_TASK_STATUS;
     const aid = t?.assignee?.id != null ? String(t.assignee.id) : '';

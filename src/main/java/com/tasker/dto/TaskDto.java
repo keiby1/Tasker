@@ -14,6 +14,7 @@ public class TaskDto {
     private Long id;
     private String title;
     private String description;
+    private String link;
     private TaskStatus status;
     private AssigneeDto assignee;
     private LocalDate planStart;

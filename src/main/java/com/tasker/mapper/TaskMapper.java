@@ -47,6 +47,7 @@ public final class TaskMapper {
                 .id(task.getId())
                 .title(task.getTitle())
                 .description(task.getDescription())
+                .link(task.getLink())
                 .status(task.getStatus())
                 .assignee(toAssigneeDto(task.getAssignee()))
                 .planStart(task.getPlanStart())

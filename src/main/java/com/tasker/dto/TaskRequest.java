@@ -19,6 +19,9 @@ public class TaskRequest {
     @Size(max = 4000)
     private String description;
 
+    @Size(max = 2048)
+    private String link;
+
     @NotNull
     private TaskStatus status;
 

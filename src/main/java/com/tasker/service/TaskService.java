@@ -57,6 +57,7 @@ public class TaskService {
         Task task = Task.builder()
                 .title(req.getTitle())
                 .description(req.getDescription())
+                .link(normalizeLink(req.getLink()))
                 .status(req.getStatus())
                 .assignee(resolveAssignee(req.getAssigneeId()))
                 .planStart(req.getPlanStart())
@@ -82,6 +83,7 @@ public class TaskService {
 
         task.setTitle(req.getTitle());
         task.setDescription(req.getDescription());
+        task.setLink(normalizeLink(req.getLink()));
         task.setAssignee(resolveAssignee(req.getAssigneeId()));
         task.setPlanStart(req.getPlanStart());
         task.setPlanEnd(req.getPlanEnd());
@@ -186,5 +188,13 @@ public class TaskService {
         }
         return assigneeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Исполнитель не найден: " + id));
+    }
+
+    private static String normalizeLink(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = raw.trim();
+        return t.isEmpty() ? null : t;
     }
 }

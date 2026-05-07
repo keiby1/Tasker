@@ -52,6 +52,7 @@ public class SampleDataLoader implements CommandLineRunner {
         demo1.setPlanEnd(LocalDate.now().plusDays(1));
 
         TaskRequest demo2 = build("Kanban UI", TaskStatus.IN_PROGRESS, maria.getId());
+        demo2.setLink("https://github.com");
         demo2.setLabelIds(List.of(feature.getId()));
         demo2.setPlanStart(LocalDate.now());
         demo2.setPlanEnd(LocalDate.now().plusDays(5));

@@ -43,6 +43,9 @@ public class Task {
     @Column(length = 4000)
     private String description;
 
+    @Column(length = 2048)
+    private String link;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private TaskStatus status;
