@@ -6,6 +6,7 @@ import com.tasker.dto.TaskDto;
 import com.tasker.model.Assignee;
 import com.tasker.model.Label;
 import com.tasker.model.Task;
+import com.tasker.model.TaskKind;
 
 import java.util.Comparator;
 import java.util.Optional;
@@ -48,6 +49,8 @@ public final class TaskMapper {
                 .title(task.getTitle())
                 .description(task.getDescription())
                 .link(task.getLink())
+                .kind(task.getKind())
+                .milestoneDate(task.getMilestoneDate())
                 .status(task.getStatus())
                 .assignee(toAssigneeDto(task.getAssignee()))
                 .planStart(task.getPlanStart())

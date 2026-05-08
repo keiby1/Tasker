@@ -1,5 +1,6 @@
 package com.tasker.dto;
 
+import com.tasker.model.TaskKind;
 import com.tasker.model.TaskStatus;
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +16,8 @@ public class TaskDto {
     private String title;
     private String description;
     private String link;
+    private TaskKind kind;
+    private LocalDate milestoneDate;
     private TaskStatus status;
     private AssigneeDto assignee;
     private LocalDate planStart;

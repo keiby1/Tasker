@@ -380,6 +380,7 @@ function renderCard(t) {
     const assigneeHtml = t.assignee
         ? `<span class="pill pill-assignee">${escapeHtml(t.assignee.name)}</span>`
         : '';
+    const msPill = t.kind === 'MILESTONE' ? `<span class="pill pill-milestone" title="Веха на Ганте">Веха</span>` : '';
     const lt = taskLinkTrimmed(t);
     const linkPart = lt
         ? `<button type="button" class="card-link-mark card-link-hit" draggable="false" aria-label="Открыть ссылку" title="${escapeHtml(
@@ -391,7 +392,7 @@ function renderCard(t) {
     <div class="card-top">
       <p class="card-title">${escapeHtml(t.title)}</p>${linkPart}
     </div>
-    <div class="meta">${assigneeHtml} ${tags}</div>
+    <div class="meta">${msPill} ${assigneeHtml} ${tags}</div>
     <div class="card-actions">
       <button type="button" class="btn mini link" data-action="edit">Изменить</button>
     </div>`;
@@ -492,7 +493,88 @@ function addDaysYmd(ymd, days) {
     return d.toISOString().slice(0, 10);
 }
 
-/** `#RGB`/`#RRGGBB` → шестизначное hex без решётки, иначе `null`. */
+/** Разница в днях по правилам, близким к Frappe Gantt `date_utils.diff(..., 'day')`. */
+function diffDaysFrappeLike(dateA, dateB) {
+    const ms =
+        dateA.getTime() -
+        dateB.getTime() +
+        (dateB.getTimezoneOffset() - dateA.getTimezoneOffset()) * 60000;
+    const days = ms / 1000 / 60 / 60 / 24;
+    return Math.round(days * 100) / 100;
+}
+
+function parseYmdToLocalDate(ymd) {
+    if (!ymd || typeof ymd !== 'string') {
+        return null;
+    }
+    const p = ymd.split('-').map((n) => Number(n));
+    if (p.length < 3 || p.some((x) => !Number.isFinite(x))) {
+        return null;
+    }
+    return new Date(p[0], p[1] - 1, p[2], 0, 0, 0, 0);
+}
+
+/** X координата в системе SVG Ганта (режим Week: step = 7 дней). */
+function ganttXForYmd(chart, ymd) {
+    const d = parseYmdToLocalDate(ymd);
+    const gs = chart?.gantt_start;
+    if (!(d instanceof Date) || !gs || !(gs instanceof Date)) {
+        return null;
+    }
+    const diff = diffDaysFrappeLike(d, gs);
+    const step = chart.config?.step;
+    const cw = chart.config?.column_width;
+    if (!step || !cw) {
+        return null;
+    }
+    const x = (diff / step) * cw;
+    return Number.isFinite(x) ? x : null;
+}
+
+function ganttMilestoneLineColor(t) {
+    const hexKey = normalizeHexColor(Array.isArray(t.labels) ? t.labels[0]?.color : null);
+    return hexKey ? `#${hexKey}` : '#64748b';
+}
+
+function drawGanttMilestoneLines(chart, milestoneItems) {
+    if (!chart?.$svg || !milestoneItems?.length) {
+        return;
+    }
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', 'gantt-milestone-layer');
+    const y1 = chart.config.header_height;
+    const y2 = chart.grid_height;
+    const w = 2;
+    for (const m of milestoneItems) {
+        const x = ganttXForYmd(chart, m.date);
+        if (x == null) {
+            continue;
+        }
+        const line = document.createElementNS(ns, 'line');
+        const xi = Math.round(x) + 0.5;
+        line.setAttribute('x1', String(xi));
+        line.setAttribute('x2', String(xi));
+        line.setAttribute('y1', String(y1));
+        line.setAttribute('y2', String(y2));
+        line.setAttribute('stroke', m.color || '#64748b');
+        line.setAttribute('stroke-width', String(w));
+        line.setAttribute('pointer-events', 'none');
+        const hint = document.createElementNS(ns, 'title');
+        hint.textContent = m.title || 'Веха';
+        line.appendChild(hint);
+        g.appendChild(line);
+    }
+    chart.$svg.appendChild(g);
+}
+
+function syncTaskFormKindUI() {
+    const k = $('#fldKind').value || 'TASK';
+    const isMs = k === 'MILESTONE';
+    $('#wrapMilestoneDate').classList.toggle('hidden', !isMs);
+    $('#wrapPlanDates').classList.toggle('hidden', isMs);
+}
+
 function normalizeHexColor(raw) {
     if (raw == null || typeof raw !== 'string') {
         return null;
@@ -544,9 +626,20 @@ function renderGantt() {
         upsertGanttLabelColorStyles(new Set());
         return;
     }
+    const milestoneItems = state.tasks
+        .filter((t) => t.kind === 'MILESTONE' && t.milestoneDate)
+        .map((t) => ({
+            date: t.milestoneDate,
+            color: ganttMilestoneLineColor(t),
+            title: t.title || 'Веха'
+        }));
+
     const usedHexColors = new Set();
     const rows = [];
     for (const t of state.tasks) {
+        if (t.kind === 'MILESTONE') {
+            continue;
+        }
         let start = t.planStart;
         let end = t.planEnd;
         if (!start) {
@@ -576,7 +669,22 @@ function renderGantt() {
         }
         rows.push(row);
     }
-    if (rows.length === 0) {
+
+    if (rows.length === 0 && milestoneItems.length > 0) {
+        const sorted = [...milestoneItems.map((m) => m.date)].sort();
+        const s0 = sorted[0];
+        const s1 = sorted[sorted.length - 1];
+        rows.push({
+            id: '__ms_range',
+            name: 'Вехи',
+            start: s0,
+            end: s1 <= s0 ? addDaysYmd(s0, 1) : s1,
+            progress: 0,
+            custom_class: 'gantt-ms-placeholder'
+        });
+    }
+
+    if (rows.length === 0 && milestoneItems.length === 0) {
         upsertGanttLabelColorStyles(new Set());
         host.innerHTML = '<div class="gantt-empty hint" style="padding:1rem">Нет задач по текущим фильтрам.</div>';
         return;
@@ -587,6 +695,7 @@ function renderGantt() {
         date_format: 'YYYY-MM-DD',
         readonly: true
     });
+    drawGanttMilestoneLines(state.gantt, milestoneItems);
 }
 
 document.querySelectorAll('.tabs .tab').forEach((btn) =>
@@ -638,6 +747,10 @@ $('#btnSaveTask').addEventListener('click', async () => {
     const payload = collectTaskPayload();
     if (!payload.title?.trim()) {
         toast('Укажите заголовок');
+        return;
+    }
+    if (payload.kind === 'MILESTONE' && !payload.milestoneDate) {
+        toast('Укажите контрольную дату для вехи');
         return;
     }
     try {
@@ -732,16 +845,26 @@ $('#btnSaveAssignee').addEventListener('click', async () => {
 function collectTaskPayload() {
     const checked = [...$('#labelMultiScroll').querySelectorAll('.label-multi-chk:checked')].map((c) => Number(c.value));
     const aid = $('#fldAssignee').value;
-    return {
+    const kind = $('#fldKind').value || 'TASK';
+    const payload = {
         title: $('#fldTitle').value.trim(),
         description: $('#fldDescription').value || null,
         link: $('#fldLink').value.trim() || null,
+        kind,
         status: $('#fldStatus').value,
         assigneeId: aid ? Number(aid) : null,
-        planStart: $('#fldPlanStart').value || null,
-        planEnd: $('#fldPlanEnd').value || null,
         labelIds: checked
     };
+    if (kind === 'MILESTONE') {
+        payload.milestoneDate = $('#fldMilestoneDate').value || null;
+        payload.planStart = null;
+        payload.planEnd = null;
+    } else {
+        payload.milestoneDate = null;
+        payload.planStart = $('#fldPlanStart').value || null;
+        payload.planEnd = $('#fldPlanEnd').value || null;
+    }
+    return payload;
 }
 
 function openTaskDialog(t) {
@@ -750,6 +873,9 @@ function openTaskDialog(t) {
     $('#fldTitle').value = t?.title || '';
     $('#fldDescription').value = t?.description || '';
     $('#fldLink').value = t?.link || '';
+    $('#fldKind').value = t && t.kind === 'MILESTONE' ? 'MILESTONE' : 'TASK';
+    $('#fldMilestoneDate').value = t?.milestoneDate || '';
+    syncTaskFormKindUI();
     const st = t?.status || DEFAULT_TASK_STATUS;
     $('#fldStatus').value = [...$('#fldStatus').options].some((o) => o.value === st) ? st : DEFAULT_TASK_STATUS;
     const aid = t?.assignee?.id != null ? String(t.assignee.id) : '';
@@ -773,6 +899,7 @@ function openTaskDialog(t) {
 
 bindLabelMultiOnce();
 bindFilterLabelMultiOnce();
+$('#fldKind').addEventListener('change', syncTaskFormKindUI);
 
 fillTaskStatusSelect();
 Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(String(e.message)));

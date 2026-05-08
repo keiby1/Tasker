@@ -65,6 +65,13 @@
         <label>Заголовок <input id="fldTitle" required maxlength="500"/></label>
         <label>Описание <textarea id="fldDescription" rows="4"></textarea></label>
         <label>Ссылка <input id="fldLink" type="text" maxlength="2048" autocomplete="off" placeholder="https://…"/></label>
+        <label>Вид
+            <select id="fldKind">
+                <option value="TASK">Обычная задача</option>
+                <option value="MILESTONE">Веха (Гант)</option>
+            </select>
+        </label>
+        <label id="wrapMilestoneDate" class="hidden">Контрольная дата (веха) <input id="fldMilestoneDate" type="date"/></label>
         <label>Статус
             <select id="fldStatus"></select>
         </label>
@@ -93,7 +100,7 @@
                 <button type="button" class="btn ghost mini" id="btnNewLabelTask" title="Добавить метку">+</button>
             </div>
         </label>
-        <div class="row two">
+        <div id="wrapPlanDates" class="row two">
             <label>Дата начала (план) <input id="fldPlanStart" type="date"/></label>
             <label>Дата конца (план) <input id="fldPlanEnd" type="date"/></label>
         </div>

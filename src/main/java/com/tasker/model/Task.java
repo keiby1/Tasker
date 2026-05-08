@@ -13,6 +13,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -45,6 +46,14 @@ public class Task {
 
     @Column(length = 2048)
     private String link;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    @ColumnDefault("'TASK'")
+    @Builder.Default
+    private TaskKind kind = TaskKind.TASK;
+
+    private LocalDate milestoneDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

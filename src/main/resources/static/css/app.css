@@ -345,8 +345,12 @@ body {
     color: var(--text);
 }
 
-.pill-assignee::before {
-    content: "@";
+.pill-milestone {
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.12);
+    color: #6b21a8;
+    font-weight: 600;
+    font-size: 0.7rem;
 }
 
 .card-actions {
@@ -363,6 +367,15 @@ body {
     border-radius: 6px;
     font-size: 0.74rem;
     border: 1px solid transparent;
+}
+
+.gantt-host .gantt .bar-wrapper.gantt-ms-placeholder .bar-group {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.gantt-host .gantt .gantt-milestone-layer line {
+    shape-rendering: crispEdges;
 }
 
 .gantt-host {

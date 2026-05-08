@@ -6,6 +6,7 @@ import com.tasker.dto.TaskRequest;
 import com.tasker.mapper.TaskMapper;
 import com.tasker.model.Label;
 import com.tasker.model.Task;
+import com.tasker.model.TaskKind;
 import com.tasker.model.TaskStatus;
 import com.tasker.model.Assignee;
 import com.tasker.repository.AssigneeRepository;
@@ -54,14 +55,19 @@ public class TaskService {
     @Transactional
     public TaskDto create(TaskRequest req) {
         Instant now = Instant.now();
+        TaskKind kind = resolvedKind(req);
+        validateKind(req, kind);
+
         Task task = Task.builder()
                 .title(req.getTitle())
                 .description(req.getDescription())
                 .link(normalizeLink(req.getLink()))
+                .kind(kind)
                 .status(req.getStatus())
                 .assignee(resolveAssignee(req.getAssigneeId()))
-                .planStart(req.getPlanStart())
-                .planEnd(req.getPlanEnd())
+                .milestoneDate(kind == TaskKind.MILESTONE ? req.getMilestoneDate() : null)
+                .planStart(kind == TaskKind.TASK ? req.getPlanStart() : null)
+                .planEnd(kind == TaskKind.TASK ? req.getPlanEnd() : null)
                 .boardOrder(0)
                 .createdAt(now)
                 .updatedAt(now)
@@ -80,13 +86,17 @@ public class TaskService {
                 .orElseThrow(() -> new NotFoundException("Задача не найдена: " + id));
 
         TaskStatus oldStatus = task.getStatus();
+        TaskKind kind = resolvedKind(req);
+        validateKind(req, kind);
 
         task.setTitle(req.getTitle());
         task.setDescription(req.getDescription());
         task.setLink(normalizeLink(req.getLink()));
+        task.setKind(kind);
+        task.setMilestoneDate(kind == TaskKind.MILESTONE ? req.getMilestoneDate() : null);
+        task.setPlanStart(kind == TaskKind.TASK ? req.getPlanStart() : null);
+        task.setPlanEnd(kind == TaskKind.TASK ? req.getPlanEnd() : null);
         task.setAssignee(resolveAssignee(req.getAssigneeId()));
-        task.setPlanStart(req.getPlanStart());
-        task.setPlanEnd(req.getPlanEnd());
 
         task.getLabels().clear();
         task.getLabels().addAll(resolveLabels(req.getLabelIds()));
@@ -196,5 +206,17 @@ public class TaskService {
         }
         String t = raw.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    private static TaskKind resolvedKind(TaskRequest req) {
+        return req.getKind() != null ? req.getKind() : TaskKind.TASK;
+    }
+
+    private static void validateKind(TaskRequest req, TaskKind kind) {
+        if (kind == TaskKind.MILESTONE) {
+            if (req.getMilestoneDate() == null) {
+                throw new IllegalArgumentException("Для вехи укажите контрольную дату.");
+            }
+        }
     }
 }

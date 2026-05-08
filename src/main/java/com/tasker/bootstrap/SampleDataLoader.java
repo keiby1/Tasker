@@ -2,6 +2,7 @@ package com.tasker.bootstrap;
 
 import com.tasker.dto.TaskRequest;
 import com.tasker.model.Assignee;
+import com.tasker.model.TaskKind;
 import com.tasker.model.TaskStatus;
 import com.tasker.repository.AssigneeRepository;
 import com.tasker.repository.LabelRepository;
@@ -70,11 +71,17 @@ public class SampleDataLoader implements CommandLineRunner {
         demo5.setPlanStart(LocalDate.now().minusDays(10));
         demo5.setPlanEnd(LocalDate.now().minusDays(3));
 
+        TaskRequest demoMs = build("Релиз 1.0 (веха)", TaskStatus.REVIEW, alex.getId());
+        demoMs.setKind(TaskKind.MILESTONE);
+        demoMs.setMilestoneDate(LocalDate.now().plusDays(10));
+        demoMs.setLabelIds(List.of(feature.getId()));
+
         taskService.create(demo1);
         taskService.create(demo2);
         taskService.create(demo3);
         taskService.create(demo4);
         taskService.create(demo5);
+        taskService.create(demoMs);
         log.info("Загружены демо-задачи");
     }
 
