@@ -9,6 +9,7 @@ C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\mapper\TaskMapper.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\Assignee.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\Label.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\Task.java
+C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\TaskKind.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\TaskStatus.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\repository\AssigneeRepository.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\repository\LabelRepository.java

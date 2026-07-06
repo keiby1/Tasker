@@ -70,6 +70,33 @@ function ganttProgressForStatus(status) {
     return Math.min(100, Math.max(0, col.progress));
 }
 
+function isGanttTaskCompleted(t) {
+    return t.status === 'DONE' || ganttProgressForStatus(t.status) >= 100;
+}
+
+function tasksForGanttChart() {
+    if (state.ganttShowCompleted) {
+        return state.tasks;
+    }
+    return state.tasks.filter((t) => !isGanttTaskCompleted(t));
+}
+
+function syncGanttToolbar() {
+    const btn = $('#btnGanttToggleCompleted');
+    const onGantt = state.currentView === 'gantt';
+    btn.classList.toggle('hidden', !onGantt);
+    if (!onGantt) {
+        return;
+    }
+    btn.setAttribute('aria-label', state.ganttShowCompleted ? 'Скрыть завершённые' : 'Показать завершённые');
+    btn.setAttribute('aria-pressed', state.ganttShowCompleted ? 'false' : 'true');
+    btn.title = state.ganttShowCompleted
+        ? 'Не показывать задачи со статусом «Готово» или прогрессом 100%'
+        : 'Показывать завершённые задачи на диаграмме';
+    btn.querySelector('.icon-eye-open')?.classList.toggle('hidden', !state.ganttShowCompleted);
+    btn.querySelector('.icon-eye-off')?.classList.toggle('hidden', state.ganttShowCompleted);
+}
+
 function fillTaskStatusSelect() {
     const sel = $('#fldStatus');
     const keep = sel.value;
@@ -87,9 +114,10 @@ const state = {
     tasks: [],
     labels: [],
     assignees: [],
-    filters: { assigneeId: '', labelId: '' },
+    filters: { assigneeId: '', labelIds: [] },
     assigneeDialogTarget: 'filter',
     gantt: null,
+    ganttShowCompleted: true,
     currentView: 'kanban'
 };
 
@@ -133,12 +161,13 @@ async function api(path, opts = {}) {
 function buildTaskQuery() {
     const p = new URLSearchParams();
     const aid = state.filters.assigneeId;
-    const lid = state.filters.labelId;
     if (aid) {
         p.set('assigneeId', aid);
     }
-    if (lid) {
-        p.set('labelId', lid);
+    for (const id of state.filters.labelIds) {
+        if (Number.isFinite(id)) {
+            p.append('labelIds', String(id));
+        }
     }
     const qs = p.toString();
     return qs ? `?${qs}` : '';
@@ -168,31 +197,30 @@ function fillAssigneeSelect(sel, valueAfter, firstLabel) {
     sel.value = [...sel.options].some((opt) => opt.value === desired) ? desired : '';
 }
 
-async function loadLabels() {
-    state.labels = await api('/api/labels');
-    const sel = $('#filterLabel');
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">Любая</option>';
-    for (const lb of state.labels) {
-        const o = document.createElement('option');
-        o.value = String(lb.id);
-        o.textContent = lb.name;
-        sel.appendChild(o);
-    }
-    sel.value = cur && [...sel.options].some((o) => o.value === cur) ? cur : '';
-    buildLabelMultiList();
-}
-
-function buildLabelMultiList() {
-    const scroll = $('#labelMultiScroll');
-    scroll.innerHTML = '';
+function buildLabelCheckboxList(scrollEl, inputClass) {
+    scrollEl.innerHTML = '';
     for (const lb of state.labels) {
         const row = document.createElement('label');
         row.className = 'label-multi-row';
         row.dataset.name = (lb.name || '').toLowerCase();
-        row.innerHTML = `<input type="checkbox" value="${lb.id}" class="label-multi-chk"/> <span style="color:${escapeAttr(lb.color || '#64748b')}">●</span> <span class="label-multi-name">${escapeHtml(lb.name)}</span>`;
-        scroll.appendChild(row);
+        row.innerHTML = `<input type="checkbox" value="${lb.id}" class="${inputClass}"/> <span style="color:${escapeAttr(lb.color || '#64748b')}">●</span> <span class="label-multi-name">${escapeHtml(lb.name)}</span>`;
+        scrollEl.appendChild(row);
     }
+}
+
+async function loadLabels() {
+    state.labels = await api('/api/labels');
+    const filterSel = new Set(state.filters.labelIds.map(String));
+    buildLabelCheckboxList($('#labelMultiScroll'), 'label-multi-chk');
+    buildLabelCheckboxList($('#filterLabelMultiScroll'), 'filter-label-chk');
+    $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
+        c.checked = filterSel.has(c.value);
+    });
+    updateFilterLabelTriggerText();
+}
+
+function buildLabelMultiList() {
+    buildLabelCheckboxList($('#labelMultiScroll'), 'label-multi-chk');
 }
 
 function escapeAttr(s) {
@@ -220,6 +248,20 @@ function updateLabelTriggerText() {
     const checked = [...$('#labelMultiScroll').querySelectorAll('.label-multi-chk:checked')];
     if (checked.length === 0) {
         trig.textContent = 'Выберите метки…';
+        return;
+    }
+    const names = checked.map((ch) => {
+        const lb = state.labels.find((l) => String(l.id) === ch.value);
+        return lb ? lb.name : ch.value;
+    });
+    trig.textContent = names.slice(0, 3).join(', ') + (names.length > 3 ? ` (+${names.length - 3})` : '');
+}
+
+function updateFilterLabelTriggerText() {
+    const trig = $('#filterLabelMultiTrigger');
+    const checked = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')];
+    if (checked.length === 0) {
+        trig.textContent = 'Любые';
         return;
     }
     const names = checked.map((ch) => {
@@ -258,6 +300,57 @@ function bindLabelMultiOnce() {
             toggleLabelDropdown(false);
         }
     });
+}
+
+function bindFilterLabelMultiOnce() {
+    const wrap = $('#filterLabelMultiWrap');
+    const trig = $('#filterLabelMultiTrigger');
+    const dd = $('#filterLabelMultiDropdown');
+    const search = $('#filterLabelMultiSearch');
+    trig.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const open = dd.hidden;
+        dd.hidden = !open;
+        trig.setAttribute('aria-expanded', String(open));
+    });
+    dd.addEventListener('click', (e) => e.stopPropagation());
+    search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        wrap.querySelectorAll('.label-multi-row').forEach((row) => {
+            const n = row.dataset.name || '';
+            row.style.display = !q || n.includes(q) ? '' : 'none';
+        });
+    });
+    $('#filterLabelMultiScroll').addEventListener('change', updateFilterLabelTriggerText);
+    document.addEventListener('click', (e) => {
+        if (!wrap.contains(e.target)) {
+            dd.hidden = true;
+            trig.setAttribute('aria-expanded', 'false');
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            dd.hidden = true;
+            trig.setAttribute('aria-expanded', 'false');
+        }
+    });
+}
+
+function taskLinkTrimmed(t) {
+    const s = t?.link;
+    return typeof s === 'string' ? s.trim() : '';
+}
+
+/** Для открытия во вкладке: без схемы подставляет https:// */
+function hrefForOpenInTab(linkTrimmed) {
+    if (!linkTrimmed) {
+        return null;
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(linkTrimmed)) {
+        return linkTrimmed;
+    }
+    return `https://${linkTrimmed}`;
 }
 
 async function loadTasks() {
@@ -315,12 +408,37 @@ function renderCard(t) {
     const assigneeHtml = t.assignee
         ? `<span class="pill pill-assignee">${escapeHtml(t.assignee.name)}</span>`
         : '';
+    const msPill = t.kind === 'MILESTONE' ? `<span class="pill pill-milestone" title="Веха на Ганте">Веха</span>` : '';
+    const lt = taskLinkTrimmed(t);
+    const linkPart = lt
+        ? `<button type="button" class="card-link-mark card-link-hit" draggable="false" aria-label="Открыть ссылку" title="${escapeHtml(
+              lt
+          )}">✅</button>`
+        : `<span class="card-link-mark" aria-label="Ссылка не задана" title="Ссылка не задана">❌</span>`;
+
     el.innerHTML = `
-    <p class="card-title">${escapeHtml(t.title)}</p>
-    <div class="meta">${assigneeHtml} ${tags}</div>
+    <div class="card-top">
+      <p class="card-title">${escapeHtml(t.title)}</p>${linkPart}
+    </div>
+    <div class="meta">${msPill} ${assigneeHtml} ${tags}</div>
     <div class="card-actions">
       <button type="button" class="btn mini link" data-action="edit">Изменить</button>
     </div>`;
+
+    const linkHit = el.querySelector('.card-link-hit');
+    if (linkHit) {
+        const href = hrefForOpenInTab(lt);
+        linkHit.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!href) {
+                return;
+            }
+            window.open(href, '_blank', 'noopener,noreferrer');
+        });
+        linkHit.addEventListener('mousedown', (e) => e.stopPropagation());
+        linkHit.addEventListener('dragstart', (e) => e.preventDefault());
+    }
     el.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
         e.stopPropagation();
         openTaskDialog(t);
@@ -403,7 +521,88 @@ function addDaysYmd(ymd, days) {
     return d.toISOString().slice(0, 10);
 }
 
-/** `#RGB`/`#RRGGBB` → шестизначное hex без решётки, иначе `null`. */
+/** Разница в днях по правилам, близким к Frappe Gantt `date_utils.diff(..., 'day')`. */
+function diffDaysFrappeLike(dateA, dateB) {
+    const ms =
+        dateA.getTime() -
+        dateB.getTime() +
+        (dateB.getTimezoneOffset() - dateA.getTimezoneOffset()) * 60000;
+    const days = ms / 1000 / 60 / 60 / 24;
+    return Math.round(days * 100) / 100;
+}
+
+function parseYmdToLocalDate(ymd) {
+    if (!ymd || typeof ymd !== 'string') {
+        return null;
+    }
+    const p = ymd.split('-').map((n) => Number(n));
+    if (p.length < 3 || p.some((x) => !Number.isFinite(x))) {
+        return null;
+    }
+    return new Date(p[0], p[1] - 1, p[2], 0, 0, 0, 0);
+}
+
+/** X координата в системе SVG Ганта (режим Week: step = 7 дней). */
+function ganttXForYmd(chart, ymd) {
+    const d = parseYmdToLocalDate(ymd);
+    const gs = chart?.gantt_start;
+    if (!(d instanceof Date) || !gs || !(gs instanceof Date)) {
+        return null;
+    }
+    const diff = diffDaysFrappeLike(d, gs);
+    const step = chart.config?.step;
+    const cw = chart.config?.column_width;
+    if (!step || !cw) {
+        return null;
+    }
+    const x = (diff / step) * cw;
+    return Number.isFinite(x) ? x : null;
+}
+
+function ganttMilestoneLineColor(t) {
+    const hexKey = normalizeHexColor(Array.isArray(t.labels) ? t.labels[0]?.color : null);
+    return hexKey ? `#${hexKey}` : '#64748b';
+}
+
+function drawGanttMilestoneLines(chart, milestoneItems) {
+    if (!chart?.$svg || !milestoneItems?.length) {
+        return;
+    }
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', 'gantt-milestone-layer');
+    const y1 = chart.config.header_height;
+    const y2 = chart.grid_height;
+    const w = 2;
+    for (const m of milestoneItems) {
+        const x = ganttXForYmd(chart, m.date);
+        if (x == null) {
+            continue;
+        }
+        const line = document.createElementNS(ns, 'line');
+        const xi = Math.round(x) + 0.5;
+        line.setAttribute('x1', String(xi));
+        line.setAttribute('x2', String(xi));
+        line.setAttribute('y1', String(y1));
+        line.setAttribute('y2', String(y2));
+        line.setAttribute('stroke', m.color || '#64748b');
+        line.setAttribute('stroke-width', String(w));
+        line.setAttribute('pointer-events', 'none');
+        const hint = document.createElementNS(ns, 'title');
+        hint.textContent = m.title || 'Веха';
+        line.appendChild(hint);
+        g.appendChild(line);
+    }
+    chart.$svg.appendChild(g);
+}
+
+function syncTaskFormKindUI() {
+    const k = $('#fldKind').value || 'TASK';
+    const isMs = k === 'MILESTONE';
+    $('#wrapMilestoneDate').classList.toggle('hidden', !isMs);
+    $('#wrapPlanDates').classList.toggle('hidden', isMs);
+}
+
 function normalizeHexColor(raw) {
     if (raw == null || typeof raw !== 'string') {
         return null;
@@ -455,9 +654,21 @@ function renderGantt() {
         upsertGanttLabelColorStyles(new Set());
         return;
     }
+    const chartTasks = tasksForGanttChart();
+    const milestoneItems = chartTasks
+        .filter((t) => t.kind === 'MILESTONE' && t.milestoneDate)
+        .map((t) => ({
+            date: t.milestoneDate,
+            color: ganttMilestoneLineColor(t),
+            title: t.title || 'Веха'
+        }));
+
     const usedHexColors = new Set();
     const rows = [];
-    for (const t of state.tasks) {
+    for (const t of chartTasks) {
+        if (t.kind === 'MILESTONE') {
+            continue;
+        }
         let start = t.planStart;
         let end = t.planEnd;
         if (!start) {
@@ -487,7 +698,22 @@ function renderGantt() {
         }
         rows.push(row);
     }
-    if (rows.length === 0) {
+
+    if (rows.length === 0 && milestoneItems.length > 0) {
+        const sorted = [...milestoneItems.map((m) => m.date)].sort();
+        const s0 = sorted[0];
+        const s1 = sorted[sorted.length - 1];
+        rows.push({
+            id: '__ms_range',
+            name: 'Вехи',
+            start: s0,
+            end: s1 <= s0 ? addDaysYmd(s0, 1) : s1,
+            progress: 0,
+            custom_class: 'gantt-ms-placeholder'
+        });
+    }
+
+    if (rows.length === 0 && milestoneItems.length === 0) {
         upsertGanttLabelColorStyles(new Set());
         host.innerHTML = '<div class="gantt-empty hint" style="padding:1rem">Нет задач по текущим фильтрам.</div>';
         return;
@@ -498,6 +724,7 @@ function renderGantt() {
         date_format: 'YYYY-MM-DD',
         readonly: true
     });
+    drawGanttMilestoneLines(state.gantt, milestoneItems);
 }
 
 document.querySelectorAll('.tabs .tab').forEach((btn) =>
@@ -515,21 +742,35 @@ document.querySelectorAll('.tabs .tab').forEach((btn) =>
             $('#viewGantt').classList.remove('hidden');
             renderGantt();
         }
+        syncGanttToolbar();
     })
 );
 
 $('#btnApplyFilters').addEventListener('click', () => {
     state.filters.assigneeId = $('#filterAssignee').value || '';
-    state.filters.labelId = $('#filterLabel').value || '';
+    state.filters.labelIds = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')].map((c) =>
+        Number(c.value)
+    );
     loadTasks().catch((e) => toast(e.message));
 });
 
 $('#btnResetFilters').addEventListener('click', () => {
     $('#filterAssignee').value = '';
-    $('#filterLabel').value = '';
+    $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
+        c.checked = false;
+    });
     state.filters.assigneeId = '';
-    state.filters.labelId = '';
+    state.filters.labelIds = [];
+    updateFilterLabelTriggerText();
     loadTasks().catch((e) => toast(e.message));
+});
+
+$('#btnGanttToggleCompleted').addEventListener('click', () => {
+    state.ganttShowCompleted = !state.ganttShowCompleted;
+    syncGanttToolbar();
+    if (state.currentView === 'gantt') {
+        renderGantt();
+    }
 });
 
 $('#btnRefresh').addEventListener('click', () => {
@@ -544,6 +785,10 @@ $('#btnSaveTask').addEventListener('click', async () => {
     const payload = collectTaskPayload();
     if (!payload.title?.trim()) {
         toast('Укажите заголовок');
+        return;
+    }
+    if (payload.kind === 'MILESTONE' && !payload.milestoneDate) {
+        toast('Укажите контрольную дату для вехи');
         return;
     }
     try {
@@ -596,6 +841,7 @@ $('#btnSaveLabel').addEventListener('click', async () => {
         toast('Метка создана');
         await loadLabels();
         updateLabelTriggerText();
+        updateFilterLabelTriggerText();
     } catch (e) {
         toast(String(e.message));
     }
@@ -637,15 +883,26 @@ $('#btnSaveAssignee').addEventListener('click', async () => {
 function collectTaskPayload() {
     const checked = [...$('#labelMultiScroll').querySelectorAll('.label-multi-chk:checked')].map((c) => Number(c.value));
     const aid = $('#fldAssignee').value;
-    return {
+    const kind = $('#fldKind').value || 'TASK';
+    const payload = {
         title: $('#fldTitle').value.trim(),
         description: $('#fldDescription').value || null,
+        link: $('#fldLink').value.trim() || null,
+        kind,
         status: $('#fldStatus').value,
         assigneeId: aid ? Number(aid) : null,
-        planStart: $('#fldPlanStart').value || null,
-        planEnd: $('#fldPlanEnd').value || null,
         labelIds: checked
     };
+    if (kind === 'MILESTONE') {
+        payload.milestoneDate = $('#fldMilestoneDate').value || null;
+        payload.planStart = null;
+        payload.planEnd = null;
+    } else {
+        payload.milestoneDate = null;
+        payload.planStart = $('#fldPlanStart').value || null;
+        payload.planEnd = $('#fldPlanEnd').value || null;
+    }
+    return payload;
 }
 
 function openTaskDialog(t) {
@@ -653,6 +910,10 @@ function openTaskDialog(t) {
     $('#taskId').value = t ? String(t.id) : '';
     $('#fldTitle').value = t?.title || '';
     $('#fldDescription').value = t?.description || '';
+    $('#fldLink').value = t?.link || '';
+    $('#fldKind').value = t && t.kind === 'MILESTONE' ? 'MILESTONE' : 'TASK';
+    $('#fldMilestoneDate').value = t?.milestoneDate || '';
+    syncTaskFormKindUI();
     const st = t?.status || DEFAULT_TASK_STATUS;
     $('#fldStatus').value = [...$('#fldStatus').options].some((o) => o.value === st) ? st : DEFAULT_TASK_STATUS;
     const aid = t?.assignee?.id != null ? String(t.assignee.id) : '';
@@ -675,6 +936,9 @@ function openTaskDialog(t) {
 }
 
 bindLabelMultiOnce();
+bindFilterLabelMultiOnce();
+$('#fldKind').addEventListener('change', syncTaskFormKindUI);
 
 fillTaskStatusSelect();
+syncGanttToolbar();
 Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(String(e.message)));
