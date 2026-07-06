@@ -773,6 +773,64 @@ $('#btnGanttToggleCompleted').addEventListener('click', () => {
     }
 });
 
+$('#btnImportTasks').addEventListener('click', () => {
+    $('#fldImportJson').value = '';
+    $('#importDialog').showModal();
+});
+
+$('#btnCancelImport').addEventListener('click', () => $('#importDialog').close());
+
+$('#btnRunImport').addEventListener('click', async () => {
+    const raw = $('#fldImportJson').value.trim();
+    if (!raw) {
+        toast('Вставьте JSON-массив задач');
+        return;
+    }
+    let items;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            toast('Ожидается JSON-массив задач');
+            return;
+        }
+        items = parsed;
+    } catch (e) {
+        toast('Некорректный JSON: ' + e.message);
+        return;
+    }
+    if (items.length === 0) {
+        toast('Массив задач пуст');
+        return;
+    }
+    try {
+        const result = await api('/api/tasks/import', { method: 'POST', body: JSON.stringify(items) });
+        const parts = [];
+        if (result.created) {
+            parts.push(`создано: ${result.created}`);
+        }
+        if (result.updated) {
+            parts.push(`обновлено: ${result.updated}`);
+        }
+        const errList = Array.isArray(result.errors) ? result.errors : [];
+        if (parts.length === 0 && errList.length === 0) {
+            toast('Ничего не импортировано');
+        } else if (errList.length === 0) {
+            toast(`Импорт: ${parts.join(', ')}`);
+            $('#importDialog').close();
+        } else {
+            const head = parts.length ? `${parts.join(', ')}, ` : '';
+            const preview = errList.slice(0, 3).join('; ');
+            const more = errList.length > 3 ? ` … (+${errList.length - 3})` : '';
+            toast(`${head}ошибок: ${errList.length}. ${preview}${more}`);
+        }
+        if (result.created || result.updated) {
+            await loadTasks();
+        }
+    } catch (e) {
+        toast(String(e.message));
+    }
+});
+
 $('#btnRefresh').addEventListener('click', () => {
     Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(e.message));
 });

@@ -1,0 +1,29 @@
+[
+  {
+    "title": "Настроить CI",
+    "description": "GitHub Actions для сборки",
+    "status": "TODO",
+    "kind": "TASK",
+    "planStart": "2026-05-10",
+    "planEnd": "2026-05-20",
+    "assigneeId": 1,
+    "labelIds": [1]
+  },
+  {
+    "title": "Релиз 2.0",
+    "status": "REVIEW",
+    "kind": "MILESTONE",
+    "milestoneDate": "2026-06-01"
+  },
+  {
+    "id": 3,
+    "title": "Kanban UI — доработки",
+    "status": "IN_PROGRESS",
+    "kind": "TASK",
+    "planStart": "2026-05-01",
+    "planEnd": "2026-05-15",
+    "assigneeId": 2,
+    "labelIds": [1, 2],
+    "link": "https://example.com/spec"
+  }
+]

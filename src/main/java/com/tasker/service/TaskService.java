@@ -2,6 +2,8 @@ package com.tasker.service;
 
 import com.tasker.dto.MoveTaskRequest;
 import com.tasker.dto.TaskDto;
+import com.tasker.dto.TaskImportItem;
+import com.tasker.dto.TaskImportResult;
 import com.tasker.dto.TaskRequest;
 import com.tasker.mapper.TaskMapper;
 import com.tasker.model.Label;
@@ -23,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -156,6 +159,70 @@ public class TaskService {
         List<Task> col = mutableColumn(st);
         col.removeIf(t -> t.getId().equals(id));
         resequence(col, Instant.now());
+    }
+
+    public TaskImportResult importTasks(List<TaskImportItem> items) {
+        int created = 0;
+        int updated = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < items.size(); i++) {
+            TaskImportItem item = items.get(i);
+            try {
+                TaskRequest req = toTaskRequest(item);
+                Optional<Long> existingId = resolveImportTargetId(item);
+                if (existingId.isPresent()) {
+                    update(existingId.get(), req);
+                    updated++;
+                } else {
+                    create(req);
+                    created++;
+                }
+            } catch (RuntimeException e) {
+                errors.add("[" + i + "] " + e.getMessage());
+            }
+        }
+
+        return TaskImportResult.builder()
+                .created(created)
+                .updated(updated)
+                .errors(errors)
+                .build();
+    }
+
+    /**
+     * Цель импорта: явный {@code id}, иначе задача с тем же непустым {@code link}, иначе создание новой.
+     */
+    private Optional<Long> resolveImportTargetId(TaskImportItem item) {
+        if (item.getId() != null) {
+            if (!taskRepository.existsById(item.getId())) {
+                throw new NotFoundException("Задача не найдена: " + item.getId());
+            }
+            return Optional.of(item.getId());
+        }
+        String link = normalizeLink(item.getLink());
+        if (link == null) {
+            return Optional.empty();
+        }
+        return taskRepository.findFirstByLink(link).map(Task::getId);
+    }
+
+    private static TaskRequest toTaskRequest(TaskImportItem item) {
+        if (item.getTitle() == null || item.getTitle().isBlank()) {
+            throw new IllegalArgumentException("Укажите заголовок (title).");
+        }
+        TaskRequest req = new TaskRequest();
+        req.setTitle(item.getTitle().trim());
+        req.setDescription(item.getDescription());
+        req.setLink(item.getLink());
+        req.setKind(item.getKind() != null ? item.getKind() : TaskKind.TASK);
+        req.setMilestoneDate(item.getMilestoneDate());
+        req.setStatus(item.getStatus() != null ? item.getStatus() : TaskStatus.TODO);
+        req.setAssigneeId(item.getAssigneeId());
+        req.setPlanStart(item.getPlanStart());
+        req.setPlanEnd(item.getPlanEnd());
+        req.setLabelIds(item.getLabelIds());
+        return req;
     }
 
     private void appendTaskToColumnEnd(Task task, Instant now) {

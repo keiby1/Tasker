@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificationExecutor<Task> {
 
@@ -19,4 +20,6 @@ public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificat
     List<Task> findAllByStatusOrderByBoardOrderAsc(TaskStatus status);
 
     long countByStatus(TaskStatus status);
+
+    Optional<Task> findFirstByLink(String link);
 }

@@ -2,6 +2,8 @@ package com.tasker.web;
 
 import com.tasker.dto.MoveTaskRequest;
 import com.tasker.dto.TaskDto;
+import com.tasker.dto.TaskImportItem;
+import com.tasker.dto.TaskImportResult;
 import com.tasker.dto.TaskRequest;
 import com.tasker.service.TaskService;
 import jakarta.validation.Valid;
@@ -60,6 +62,11 @@ public class TaskController {
     @PostMapping
     public TaskDto create(@Valid @RequestBody TaskRequest req) {
         return taskService.create(req);
+    }
+
+    @PostMapping("/import")
+    public TaskImportResult importTasks(@RequestBody List<TaskImportItem> items) {
+        return taskService.importTasks(items != null ? items : List.of());
     }
 
     @PutMapping("/{id}")

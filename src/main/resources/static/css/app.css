@@ -497,6 +497,30 @@ body {
     color: var(--text);
 }
 
+.import-hint {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.import-hint code {
+    font-size: 0.9em;
+    color: var(--text);
+}
+
+.import-json {
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    min-height: 280px;
+    resize: vertical;
+}
+
+.modal-import .modal-body {
+    min-width: min(720px, 92vw);
+}
+
 .modal-body label {
     display: flex;
     flex-direction: column;
