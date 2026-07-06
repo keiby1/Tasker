@@ -70,6 +70,33 @@ function ganttProgressForStatus(status) {
     return Math.min(100, Math.max(0, col.progress));
 }
 
+function isGanttTaskCompleted(t) {
+    return t.status === 'DONE' || ganttProgressForStatus(t.status) >= 100;
+}
+
+function tasksForGanttChart() {
+    if (state.ganttShowCompleted) {
+        return state.tasks;
+    }
+    return state.tasks.filter((t) => !isGanttTaskCompleted(t));
+}
+
+function syncGanttToolbar() {
+    const btn = $('#btnGanttToggleCompleted');
+    const onGantt = state.currentView === 'gantt';
+    btn.classList.toggle('hidden', !onGantt);
+    if (!onGantt) {
+        return;
+    }
+    btn.setAttribute('aria-label', state.ganttShowCompleted ? 'Скрыть завершённые' : 'Показать завершённые');
+    btn.setAttribute('aria-pressed', state.ganttShowCompleted ? 'false' : 'true');
+    btn.title = state.ganttShowCompleted
+        ? 'Не показывать задачи со статусом «Готово» или прогрессом 100%'
+        : 'Показывать завершённые задачи на диаграмме';
+    btn.querySelector('.icon-eye-open')?.classList.toggle('hidden', !state.ganttShowCompleted);
+    btn.querySelector('.icon-eye-off')?.classList.toggle('hidden', state.ganttShowCompleted);
+}
+
 function fillTaskStatusSelect() {
     const sel = $('#fldStatus');
     const keep = sel.value;
@@ -90,6 +117,7 @@ const state = {
     filters: { assigneeId: '', labelIds: [] },
     assigneeDialogTarget: 'filter',
     gantt: null,
+    ganttShowCompleted: true,
     currentView: 'kanban'
 };
 
@@ -626,7 +654,8 @@ function renderGantt() {
         upsertGanttLabelColorStyles(new Set());
         return;
     }
-    const milestoneItems = state.tasks
+    const chartTasks = tasksForGanttChart();
+    const milestoneItems = chartTasks
         .filter((t) => t.kind === 'MILESTONE' && t.milestoneDate)
         .map((t) => ({
             date: t.milestoneDate,
@@ -636,7 +665,7 @@ function renderGantt() {
 
     const usedHexColors = new Set();
     const rows = [];
-    for (const t of state.tasks) {
+    for (const t of chartTasks) {
         if (t.kind === 'MILESTONE') {
             continue;
         }
@@ -713,6 +742,7 @@ document.querySelectorAll('.tabs .tab').forEach((btn) =>
             $('#viewGantt').classList.remove('hidden');
             renderGantt();
         }
+        syncGanttToolbar();
     })
 );
 
@@ -733,6 +763,14 @@ $('#btnResetFilters').addEventListener('click', () => {
     state.filters.labelIds = [];
     updateFilterLabelTriggerText();
     loadTasks().catch((e) => toast(e.message));
+});
+
+$('#btnGanttToggleCompleted').addEventListener('click', () => {
+    state.ganttShowCompleted = !state.ganttShowCompleted;
+    syncGanttToolbar();
+    if (state.currentView === 'gantt') {
+        renderGantt();
+    }
 });
 
 $('#btnRefresh').addEventListener('click', () => {
@@ -902,4 +940,5 @@ bindFilterLabelMultiOnce();
 $('#fldKind').addEventListener('change', syncTaskFormKindUI);
 
 fillTaskStatusSelect();
+syncGanttToolbar();
 Promise.all([loadAssignees(), loadLabels(), loadTasks()]).catch((e) => toast(String(e.message)));
