@@ -157,14 +157,65 @@ const state = {
 
 const $ = (sel) => document.querySelector(sel);
 
-function toast(msg) {
+const TOAST_DURATION_MS = 3200;
+const TOAST_DURATION_IMPORT_MS = TOAST_DURATION_MS * 3;
+
+function toast(msg, opts = {}) {
     const el = $('#toast');
-    el.textContent = msg;
+    el.classList.remove('toast--success', 'toast--warning', 'toast--error', 'toast--import');
+    if (opts.html) {
+        el.innerHTML = msg;
+    } else {
+        el.textContent = msg;
+    }
+    if (opts.variant) {
+        el.classList.add(`toast--${opts.variant}`);
+    }
+    if (opts.import) {
+        el.classList.add('toast--import');
+    }
     el.hidden = false;
     clearTimeout(toast._t);
     toast._t = setTimeout(() => {
         el.hidden = true;
-    }, 3200);
+    }, opts.duration ?? TOAST_DURATION_MS);
+}
+
+function showImportResultToast(result) {
+    const errList = Array.isArray(result.errors) ? result.errors : [];
+    const created = result.created || 0;
+    const updated = result.updated || 0;
+    const segments = [];
+
+    if (created) {
+        segments.push(`<span class="toast-stat toast-stat--created">создано: ${created}</span>`);
+    }
+    if (updated) {
+        segments.push(`<span class="toast-stat toast-stat--updated">обновлено: ${updated}</span>`);
+    }
+    if (errList.length) {
+        const preview = errList
+            .slice(0, 3)
+            .map((e) => escapeHtml(String(e)))
+            .join('; ');
+        const more = errList.length > 3 ? ` … (+${errList.length - 3})` : '';
+        segments.push(
+            `<span class="toast-stat toast-stat--error">ошибок: ${errList.length}. ${preview}${escapeHtml(more)}</span>`
+        );
+    }
+
+    const toastOpts = { duration: TOAST_DURATION_IMPORT_MS, import: true };
+
+    if (segments.length === 0) {
+        toast('Ничего не импортировано', { ...toastOpts, variant: 'warning' });
+        return;
+    }
+
+    toast(`Импорт: ${segments.join(', ')}`, { ...toastOpts, html: true });
+
+    if (errList.length === 0) {
+        $('#importDialog').close();
+    }
 }
 
 async function api(path, opts = {}) {
@@ -853,30 +904,12 @@ $('#btnRunImport').addEventListener('click', async () => {
     }
     try {
         const result = await api('/api/tasks/import', { method: 'POST', body: JSON.stringify(items) });
-        const parts = [];
-        if (result.created) {
-            parts.push(`создано: ${result.created}`);
-        }
-        if (result.updated) {
-            parts.push(`обновлено: ${result.updated}`);
-        }
-        const errList = Array.isArray(result.errors) ? result.errors : [];
-        if (parts.length === 0 && errList.length === 0) {
-            toast('Ничего не импортировано');
-        } else if (errList.length === 0) {
-            toast(`Импорт: ${parts.join(', ')}`);
-            $('#importDialog').close();
-        } else {
-            const head = parts.length ? `${parts.join(', ')}, ` : '';
-            const preview = errList.slice(0, 3).join('; ');
-            const more = errList.length > 3 ? ` … (+${errList.length - 3})` : '';
-            toast(`${head}ошибок: ${errList.length}. ${preview}${more}`);
-        }
+        showImportResultToast(result);
         if (result.created || result.updated) {
             await loadTasks();
         }
     } catch (e) {
-        toast(String(e.message));
+        toast(String(e.message), { duration: TOAST_DURATION_IMPORT_MS, variant: 'error', import: true });
     }
 });
 

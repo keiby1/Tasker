@@ -627,3 +627,39 @@ body {
     box-shadow: 0 10px 30px var(--shadow-md);
     z-index: 80;
 }
+
+.toast--import {
+    max-width: min(520px, 92vw);
+    line-height: 1.45;
+}
+
+.toast--success {
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.toast--warning {
+    border-color: #fdba74;
+    background: #fff7ed;
+}
+
+.toast--error {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.toast-stat {
+    font-weight: 600;
+}
+
+.toast-stat--created {
+    color: #16a34a;
+}
+
+.toast-stat--updated {
+    color: #ea580c;
+}
+
+.toast-stat--error {
+    color: #dc2626;
+}
