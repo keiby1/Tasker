@@ -207,6 +207,18 @@ function buildTaskQuery() {
     return qs ? `?${qs}` : '';
 }
 
+function syncServerFiltersFromUi() {
+    state.filters.assigneeId = $('#filterAssignee').value || '';
+    state.filters.labelIds = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')].map((c) =>
+        Number(c.value)
+    );
+}
+
+function applyServerFilters() {
+    syncServerFiltersFromUi();
+    return loadTasks().catch((e) => toast(e.message));
+}
+
 async function loadAssignees() {
     const keepFilter = $('#filterAssignee') ? $('#filterAssignee').value : '';
     const keepTask = $('#fldAssignee') ? $('#fldAssignee').value : '';
@@ -356,7 +368,10 @@ function bindFilterLabelMultiOnce() {
             row.style.display = !q || n.includes(q) ? '' : 'none';
         });
     });
-    $('#filterLabelMultiScroll').addEventListener('change', updateFilterLabelTriggerText);
+    $('#filterLabelMultiScroll').addEventListener('change', () => {
+        updateFilterLabelTriggerText();
+        applyServerFilters();
+    });
     document.addEventListener('click', (e) => {
         if (!wrap.contains(e.target)) {
             dd.hidden = true;
@@ -779,13 +794,7 @@ document.querySelectorAll('.tabs .tab').forEach((btn) =>
     })
 );
 
-$('#btnApplyFilters').addEventListener('click', () => {
-    state.filters.assigneeId = $('#filterAssignee').value || '';
-    state.filters.labelIds = [...$('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk:checked')].map((c) =>
-        Number(c.value)
-    );
-    loadTasks().catch((e) => toast(e.message));
-});
+$('#filterAssignee').addEventListener('change', () => applyServerFilters());
 
 $('#btnResetFilters').addEventListener('click', () => {
     $('#filterAssignee').value = '';
@@ -970,6 +979,7 @@ $('#btnSaveAssignee').addEventListener('click', async () => {
         if (state.assigneeDialogTarget === 'filter') {
             $('#filterAssignee').value = String(created.id);
             state.filters.assigneeId = String(created.id);
+            await loadTasks();
         } else {
             $('#fldAssignee').value = String(created.id);
         }
