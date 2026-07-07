@@ -4,6 +4,8 @@ C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\AssigneeDto.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\LabelDto.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\MoveTaskRequest.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\TaskDto.java
+C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\TaskImportItem.java
+C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\TaskImportResult.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\dto\TaskRequest.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\mapper\TaskMapper.java
 C:\Users\Alex\Cursor\Tasker\src\main\java\com\tasker\model\Assignee.java

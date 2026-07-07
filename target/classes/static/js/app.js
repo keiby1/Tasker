@@ -74,11 +74,45 @@ function isGanttTaskCompleted(t) {
     return t.status === 'DONE' || ganttProgressForStatus(t.status) >= 100;
 }
 
-function tasksForGanttChart() {
-    if (state.ganttShowCompleted) {
+function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function taskMatchesLinkSearch(t, query) {
+    const q = typeof query === 'string' ? query.trim() : '';
+    if (!q) {
+        return true;
+    }
+    const link = taskLinkTrimmed(t);
+    if (!link) {
+        return false;
+    }
+    const re = new RegExp(`.*${escapeRegExp(q)}.*`, 'i');
+    return re.test(link);
+}
+
+function visibleTasks() {
+    const q = state.filters.linkSearch;
+    if (!q || !String(q).trim()) {
         return state.tasks;
     }
-    return state.tasks.filter((t) => !isGanttTaskCompleted(t));
+    return state.tasks.filter((t) => taskMatchesLinkSearch(t, q));
+}
+
+function rerenderCurrentView() {
+    if (state.currentView === 'kanban') {
+        renderBoard();
+    } else {
+        renderGantt();
+    }
+}
+
+function tasksForGanttChart() {
+    let list = visibleTasks();
+    if (!state.ganttShowCompleted) {
+        list = list.filter((t) => !isGanttTaskCompleted(t));
+    }
+    return list;
 }
 
 function syncGanttToolbar() {
@@ -114,7 +148,7 @@ const state = {
     tasks: [],
     labels: [],
     assignees: [],
-    filters: { assigneeId: '', labelIds: [] },
+    filters: { assigneeId: '', labelIds: [], linkSearch: '' },
     assigneeDialogTarget: 'filter',
     gantt: null,
     ganttShowCompleted: true,
@@ -366,18 +400,17 @@ function renderBoard() {
     const board = $('#board');
     board.innerHTML = '';
     const knownStatuses = new Set(STATUS_COLUMNS.map((s) => s.status));
+    const tasks = visibleTasks();
     for (const lane of BOARD_LANES) {
         const list = [];
-        for (const t of state.tasks) {
+        for (const t of tasks) {
             if (lane.statuses.includes(t.status)) {
                 list.push(t);
             }
         }
         const sorted = sortTasksInLane(lane.key, list);
         const orphansInLane =
-            lane.key === 'backlog'
-                ? state.tasks.filter((t) => !knownStatuses.has(t.status))
-                : [];
+            lane.key === 'backlog' ? tasks.filter((t) => !knownStatuses.has(t.status)) : [];
         const merged = [...sorted, ...sortTasksInLane('backlog', orphansInLane)];
         const wrap = document.createElement('div');
         wrap.className = 'column';
@@ -756,13 +789,20 @@ $('#btnApplyFilters').addEventListener('click', () => {
 
 $('#btnResetFilters').addEventListener('click', () => {
     $('#filterAssignee').value = '';
+    $('#filterLinkSearch').value = '';
     $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
         c.checked = false;
     });
     state.filters.assigneeId = '';
     state.filters.labelIds = [];
+    state.filters.linkSearch = '';
     updateFilterLabelTriggerText();
     loadTasks().catch((e) => toast(e.message));
+});
+
+$('#filterLinkSearch').addEventListener('input', () => {
+    state.filters.linkSearch = $('#filterLinkSearch').value;
+    rerenderCurrentView();
 });
 
 $('#btnGanttToggleCompleted').addEventListener('click', () => {
@@ -770,6 +810,64 @@ $('#btnGanttToggleCompleted').addEventListener('click', () => {
     syncGanttToolbar();
     if (state.currentView === 'gantt') {
         renderGantt();
+    }
+});
+
+$('#btnImportTasks').addEventListener('click', () => {
+    $('#fldImportJson').value = '';
+    $('#importDialog').showModal();
+});
+
+$('#btnCancelImport').addEventListener('click', () => $('#importDialog').close());
+
+$('#btnRunImport').addEventListener('click', async () => {
+    const raw = $('#fldImportJson').value.trim();
+    if (!raw) {
+        toast('Вставьте JSON-массив задач');
+        return;
+    }
+    let items;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            toast('Ожидается JSON-массив задач');
+            return;
+        }
+        items = parsed;
+    } catch (e) {
+        toast('Некорректный JSON: ' + e.message);
+        return;
+    }
+    if (items.length === 0) {
+        toast('Массив задач пуст');
+        return;
+    }
+    try {
+        const result = await api('/api/tasks/import', { method: 'POST', body: JSON.stringify(items) });
+        const parts = [];
+        if (result.created) {
+            parts.push(`создано: ${result.created}`);
+        }
+        if (result.updated) {
+            parts.push(`обновлено: ${result.updated}`);
+        }
+        const errList = Array.isArray(result.errors) ? result.errors : [];
+        if (parts.length === 0 && errList.length === 0) {
+            toast('Ничего не импортировано');
+        } else if (errList.length === 0) {
+            toast(`Импорт: ${parts.join(', ')}`);
+            $('#importDialog').close();
+        } else {
+            const head = parts.length ? `${parts.join(', ')}, ` : '';
+            const preview = errList.slice(0, 3).join('; ');
+            const more = errList.length > 3 ? ` … (+${errList.length - 3})` : '';
+            toast(`${head}ошибок: ${errList.length}. ${preview}${more}`);
+        }
+        if (result.created || result.updated) {
+            await loadTasks();
+        }
+    } catch (e) {
+        toast(String(e.message));
     }
 });
 

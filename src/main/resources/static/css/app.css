@@ -90,6 +90,10 @@ body {
     min-width: 200px;
 }
 
+.field-link-search input {
+    min-width: 220px;
+}
+
 .field {
     display: flex;
     flex-direction: column;

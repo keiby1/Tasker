@@ -74,11 +74,45 @@ function isGanttTaskCompleted(t) {
     return t.status === 'DONE' || ganttProgressForStatus(t.status) >= 100;
 }
 
-function tasksForGanttChart() {
-    if (state.ganttShowCompleted) {
+function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function taskMatchesLinkSearch(t, query) {
+    const q = typeof query === 'string' ? query.trim() : '';
+    if (!q) {
+        return true;
+    }
+    const link = taskLinkTrimmed(t);
+    if (!link) {
+        return false;
+    }
+    const re = new RegExp(`.*${escapeRegExp(q)}.*`, 'i');
+    return re.test(link);
+}
+
+function visibleTasks() {
+    const q = state.filters.linkSearch;
+    if (!q || !String(q).trim()) {
         return state.tasks;
     }
-    return state.tasks.filter((t) => !isGanttTaskCompleted(t));
+    return state.tasks.filter((t) => taskMatchesLinkSearch(t, q));
+}
+
+function rerenderCurrentView() {
+    if (state.currentView === 'kanban') {
+        renderBoard();
+    } else {
+        renderGantt();
+    }
+}
+
+function tasksForGanttChart() {
+    let list = visibleTasks();
+    if (!state.ganttShowCompleted) {
+        list = list.filter((t) => !isGanttTaskCompleted(t));
+    }
+    return list;
 }
 
 function syncGanttToolbar() {
@@ -114,7 +148,7 @@ const state = {
     tasks: [],
     labels: [],
     assignees: [],
-    filters: { assigneeId: '', labelIds: [] },
+    filters: { assigneeId: '', labelIds: [], linkSearch: '' },
     assigneeDialogTarget: 'filter',
     gantt: null,
     ganttShowCompleted: true,
@@ -366,18 +400,17 @@ function renderBoard() {
     const board = $('#board');
     board.innerHTML = '';
     const knownStatuses = new Set(STATUS_COLUMNS.map((s) => s.status));
+    const tasks = visibleTasks();
     for (const lane of BOARD_LANES) {
         const list = [];
-        for (const t of state.tasks) {
+        for (const t of tasks) {
             if (lane.statuses.includes(t.status)) {
                 list.push(t);
             }
         }
         const sorted = sortTasksInLane(lane.key, list);
         const orphansInLane =
-            lane.key === 'backlog'
-                ? state.tasks.filter((t) => !knownStatuses.has(t.status))
-                : [];
+            lane.key === 'backlog' ? tasks.filter((t) => !knownStatuses.has(t.status)) : [];
         const merged = [...sorted, ...sortTasksInLane('backlog', orphansInLane)];
         const wrap = document.createElement('div');
         wrap.className = 'column';
@@ -756,13 +789,20 @@ $('#btnApplyFilters').addEventListener('click', () => {
 
 $('#btnResetFilters').addEventListener('click', () => {
     $('#filterAssignee').value = '';
+    $('#filterLinkSearch').value = '';
     $('#filterLabelMultiScroll').querySelectorAll('.filter-label-chk').forEach((c) => {
         c.checked = false;
     });
     state.filters.assigneeId = '';
     state.filters.labelIds = [];
+    state.filters.linkSearch = '';
     updateFilterLabelTriggerText();
     loadTasks().catch((e) => toast(e.message));
+});
+
+$('#filterLinkSearch').addEventListener('input', () => {
+    state.filters.linkSearch = $('#filterLinkSearch').value;
+    rerenderCurrentView();
 });
 
 $('#btnGanttToggleCompleted').addEventListener('click', () => {

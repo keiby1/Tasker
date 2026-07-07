@@ -90,6 +90,10 @@ body {
     min-width: 200px;
 }
 
+.field-link-search input {
+    min-width: 220px;
+}
+
 .field {
     display: flex;
     flex-direction: column;
@@ -495,6 +499,30 @@ body {
     margin: 0 0 0.25rem;
     font-size: 1.2rem;
     color: var(--text);
+}
+
+.import-hint {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.import-hint code {
+    font-size: 0.9em;
+    color: var(--text);
+}
+
+.import-json {
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    min-height: 280px;
+    resize: vertical;
+}
+
+.modal-import .modal-body {
+    min-width: min(720px, 92vw);
 }
 
 .modal-body label {

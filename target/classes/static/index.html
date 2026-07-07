@@ -44,6 +44,11 @@
         </label>
         <button type="button" id="btnApplyFilters" class="btn primary">Применить</button>
         <button type="button" id="btnResetFilters" class="btn ghost">Сброс</button>
+        <label class="field field-link-search">
+            Ссылка
+            <input type="search" id="filterLinkSearch" placeholder="фильтр по ссылке…" autocomplete="off"
+                   spellcheck="false"/>
+        </label>
         <span class="spacer"></span>
         <button type="button" id="btnGanttToggleCompleted" class="btn ghost btn-icon hidden"
                 aria-label="Скрыть завершённые"
@@ -60,6 +65,15 @@
                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                 <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
                 <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+        </button>
+        <button type="button" id="btnImportTasks" class="btn ghost btn-icon" aria-label="Импорт задач"
+                title="Импорт задач из JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12"/>
+                <path d="m8 7 4-4 4 4"/>
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
             </svg>
         </button>
         <button type="button" id="btnRefresh" class="btn">Обновить</button>
@@ -149,6 +163,22 @@
         <footer class="modal-actions">
             <button type="button" class="btn" id="btnCancelLabel">Отмена</button>
             <button type="button" class="btn accent" id="btnSaveLabel">Создать</button>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="importDialog" class="modal modal-import">
+    <form method="dialog" id="importForm" class="modal-body">
+        <h2>Импорт задач</h2>
+        <p class="import-hint">Вставьте JSON-массив задач. Обновление: по полю <code>id</code> или по непустому <code>link</code> (если задача с такой ссылкой уже есть). Пустой <code>link</code> — всегда новая задача.</p>
+        <label>JSON
+            <textarea id="fldImportJson" class="import-json" rows="14" spellcheck="false"
+                      placeholder='[{"title": "…", "status": "TODO"}]'></textarea>
+        </label>
+        <footer class="modal-actions">
+            <span class="spacer"></span>
+            <button type="button" class="btn" id="btnCancelImport">Отмена</button>
+            <button type="button" class="btn accent" id="btnRunImport">Импортировать</button>
         </footer>
     </form>
 </dialog>
